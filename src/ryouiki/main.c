@@ -4,7 +4,6 @@
 #include <unistd.h>
 #include "terminal.h"
 
-
 int main(void) {
     enableRawMode();
 
@@ -20,8 +19,11 @@ int main(void) {
             printf("%d, ('%c')\r\n", c, c);
         }
 
-        if (c == 'q')
-            break;
+        if (c == ':') {
+            disableRawMode();
+        }
+
+        if (curr_mode == command && c == 'q') break;
     }
 
     return 0;
