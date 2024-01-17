@@ -2,13 +2,16 @@
 #define TERMINAL_H
 
 enum mode {
-    raw,
+    normal,
     command
 };
 
 enum mode curr_mode;
-void enableRawMode(void);
-void disableRawMode(void);
+void normalMode(void);
+void commandMode(void);
+void resetMode(void);
+char readKey(void);
+void resetScreen(void);
 void fail(const char *c);
 
 #endif
