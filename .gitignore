@@ -1,2 +1,3 @@
-ryouiki
-!ryouiki/
+/zig-cache
+/zig-out
+
