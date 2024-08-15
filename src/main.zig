@@ -10,17 +10,27 @@ const Cmd = enum {
 };
 
 const State = struct {
+    runnning: bool,
     mode: Mode,
 
     pub fn init() State {
         return State{
-            .mode = Mode.insert,
+            .mode = Mode.normal,
+            .runnning = true,
         };
     }
 
     pub fn change_mode(self: *State, new_mode: Mode) void {
         debug.print("Mode: {}\r\n", .{new_mode});
         self.mode = new_mode;
+    }
+
+    pub fn is_running(self: State) bool {
+        return self.runnning;
+    }
+
+    pub fn close(self: *State) void {
+        self.runnning = false;
     }
 };
 
@@ -46,7 +56,7 @@ pub fn main() !void {
 fn nloop(state: *State, orig: *const posix.termios, tty: *fs.File) !void {
     var cmd_buf: [1024]u8 = undefined;
     var cmd_chars: usize = 0;
-    while (true) {
+    while (state.is_running()) {
         switch (state.mode) {
             .insert => {
                 try insert(tty, state);
@@ -55,31 +65,7 @@ fn nloop(state: *State, orig: *const posix.termios, tty: *fs.File) !void {
                 try normal(tty, state);
             },
             .cmd => {
-                var buf: [1]u8 = undefined;
-                _ = try tty.read(&buf);
-
-                switch (buf[0]) {
-                    13 => {
-                        // TODO: expand to support multi-char commands
-                        if (cmd_buf[0] == 'q') {
-                            try cook(tty, orig);
-                            break;
-                        } else if (cmd_buf[0] == 'w') {
-                            debug.print("writing to disc!\r\n", .{});
-                        } else {
-                            cmd_chars = 0;
-                            state.change_mode(Mode.normal);
-                        }
-                    },
-                    3 => {
-                        cmd_chars = 0;
-                        state.change_mode(Mode.normal);
-                    },
-                    else => {
-                        cmd_buf[cmd_chars] = buf[0];
-                        cmd_chars += 1;
-                    },
-                }
+                try cmd(tty, state, orig, &cmd_buf, &cmd_chars);
             },
         }
     }
@@ -103,6 +89,34 @@ fn normal(tty: *fs.File, state: *State) !void {
         ':' => state.change_mode(Mode.cmd),
         'i' => state.change_mode(Mode.insert),
         else => {},
+    }
+}
+
+fn cmd(tty: *fs.File, state: *State, orig: *const posix.termios, cmd_buf: *[1024]u8, cmd_chars: *usize) !void {
+    var buf: [1]u8 = undefined;
+    _ = try tty.read(&buf);
+
+    switch (buf[0]) {
+        13 => {
+            // TODO: expand to support multi-char commands
+            if (cmd_buf.*[0] == 'q') {
+                try cook(tty, orig);
+                state.close();
+            } else if (cmd_buf[0] == 'w') {
+                debug.print("writing to disc!\r\n", .{});
+            } else {
+                cmd_chars.* = 0;
+                state.change_mode(Mode.normal);
+            }
+        },
+        3 => {
+            cmd_chars.* = 0;
+            state.change_mode(Mode.normal);
+        },
+        else => {
+            cmd_buf.*[cmd_chars.*] = buf[0];
+            cmd_chars.* += 1;
+        },
     }
 }
 
